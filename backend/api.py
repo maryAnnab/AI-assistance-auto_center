@@ -1,8 +1,8 @@
 from livekit.agents import llm
-import enum 
+import enum
 from typing import Annotated
 import logging
-from db_driver import DatabaseDriver
+from backend.db_driver import DatabaseDriver
 
 logger = logging.getLogger("user-data")
 logger.setLevel(logging.INFO)
@@ -14,34 +14,33 @@ class CarDetails(enum.Enum):
     Make = "make"
     Model = "model"
     Year = "year"
+    
 
 class AssistantFnc(llm.FunctionContext):
     def __init__(self):
         super().__init__()
-
+        
         self._car_details = {
             CarDetails.VIN: "",
             CarDetails.Make: "",
             CarDetails.Model: "",
             CarDetails.Year: ""
         }
-
-
+    
     def get_car_str(self):
         car_str = ""
         for key, value in self._car_details.items():
             car_str += f"{key}: {value}\n"
-
-        return car_str()    
+            
+        return car_str
+    
+    @llm.ai_callable(description="lookup a car by its vin")
+    def lookup_car(self, vin: Annotated[str, llm.TypeInfo(description="The vin of the car to lookup")]):
+        logger.info("lookup car - vin: %s", vin)
         
-
-    @llm.ai_callable(description="look a car by its vin")         
-    def look_car(self, vin: Annotated[str, llm.TypeInfo(description="The vin of the car to lookup")]):
-        logger.info("looup car - vin: %s", vin)
-
         result = DB.get_car_by_vin(vin)
         if result is None:
-            return f"Car with VIN {vin} not found"
+            return "Car not found"
         
         self._car_details = {
             CarDetails.VIN: result.vin,
@@ -49,24 +48,23 @@ class AssistantFnc(llm.FunctionContext):
             CarDetails.Model: result.model,
             CarDetails.Year: result.year
         }
-
-        return f"The car details are: {self.get_car_str()}"    
-    
-    @llm.ai_callable(description="Get the details of the current car")         
-    def get_car_details(self):
-        logger.info("Get car details")
+        
         return f"The car details are: {self.get_car_str()}"
-
     
-    @llm.ai_callable(description="Create a new car")         
+    @llm.ai_callable(description="get the details of the current car")
+    def get_car_details(self):
+        logger.info("get car  details")
+        return f"The car details are: {self.get_car_str()}"
+    
+    @llm.ai_callable(description="create a new car")
     def create_car(
         self, 
         vin: Annotated[str, llm.TypeInfo(description="The vin of the car")],
-        make: Annotated[str, llm.TypeInfo(description="The make of the car")],
+        make: Annotated[str, llm.TypeInfo(description="The make of the car ")],
         model: Annotated[str, llm.TypeInfo(description="The model of the car")],
         year: Annotated[int, llm.TypeInfo(description="The year of the car")]
     ):
-        logger.info("Create car - vin: %s, make: %s, model: %s, year: %s", vin, make, model, year)
+        logger.info("create car - vin: %s, make: %s, model: %s, year: %s", vin, make, model, year)
         result = DB.create_car(vin, make, model, year)
         if result is None:
             return "Failed to create car"
@@ -77,9 +75,8 @@ class AssistantFnc(llm.FunctionContext):
             CarDetails.Model: result.model,
             CarDetails.Year: result.year
         }
-
-        return "Car created!"
-
+        
+        return "car created!"
+    
     def has_car(self):
-        return self._car_details[CarDetails.VIN] !=""
-
+        return self._car_details[CarDetails.VIN] != ""
